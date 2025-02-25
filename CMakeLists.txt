@@ -842,6 +842,8 @@ set(VIDEO_CORE src/video_core/amdgpu/liverpool.cpp
                src/video_core/renderer_vulkan/vk_shader_hle.h
                src/video_core/renderer_vulkan/vk_shader_util.cpp
                src/video_core/renderer_vulkan/vk_shader_util.h
+               src/video_core/renderer_vulkan/vk_shader_cache.cpp
+               src/video_core/renderer_vulkan/vk_shader_cache.h
                src/video_core/renderer_vulkan/vk_swapchain.cpp
                src/video_core/renderer_vulkan/vk_swapchain.h
                src/video_core/texture_cache/image.cpp
@@ -982,6 +984,7 @@ else()
         src/emulator.h
         src/sdl_window.h
         src/sdl_window.cpp
+        src/video_core/renderer_vulkan/vk_shader_hle.cpp
     )
 endif()
 
@@ -989,6 +992,7 @@ create_target_directory_groups(shadps4)
 
 target_link_libraries(shadps4 PRIVATE magic_enum::magic_enum fmt::fmt toml11::toml11 tsl::robin_map xbyak::xbyak Tracy::TracyClient RenderDoc::API FFmpeg::ffmpeg Dear_ImGui gcn half::half ZLIB::ZLIB PNG::PNG)
 target_link_libraries(shadps4 PRIVATE Boost::headers GPUOpen::VulkanMemoryAllocator LibAtrac9 sirit Vulkan::Headers xxHash::xxhash Zydis::Zydis glslang::glslang SDL3::SDL3 pugixml::pugixml stb::headers)
+target_link_libraries(shadps4 PRIVATE Vulkan::Vulkan)
 
 target_compile_definitions(shadps4 PRIVATE IMGUI_USER_CONFIG="imgui/imgui_config.h")
 target_compile_definitions(Dear_ImGui PRIVATE IMGUI_USER_CONFIG="${PROJECT_SOURCE_DIR}/src/imgui/imgui_config.h")

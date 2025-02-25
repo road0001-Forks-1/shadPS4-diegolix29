@@ -10,11 +10,13 @@ struct Info;
 }
 
 namespace Vulkan {
+std::string GenerateCopyShaderSource(const Shader::Info& info);
 
 class Rasterizer;
 
 /// Attempts to execute a shader using HLE if possible.
 bool ExecuteShaderHLE(const Shader::Info& info, const AmdGpu::Liverpool::Regs& regs,
-                      const AmdGpu::Liverpool::ComputeProgram& cs_program, Rasterizer& rasterizer);
+                      const AmdGpu::Liverpool::ComputeProgram& cs_program, Rasterizer& rasterizer,
+                      vk::ShaderModule shader_module);
 
 } // namespace Vulkan

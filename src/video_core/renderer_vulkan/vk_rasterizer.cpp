@@ -12,6 +12,7 @@
 #include "video_core/renderer_vulkan/vk_shader_hle.h"
 #include "video_core/texture_cache/image_view.h"
 #include "video_core/texture_cache/texture_cache.h"
+#include "video_core/renderer_vulkan/vk_shader_util.h"
 
 #ifdef MemoryBarrier
 #undef MemoryBarrier
@@ -386,10 +387,15 @@ void Rasterizer::DispatchDirect() {
         return;
     }
 
-    const auto& cs = pipeline->GetStage(Shader::LogicalStage::Compute);
-    if (ExecuteShaderHLE(cs, liverpool->regs, cs_program, *this)) {
+const auto& cs = pipeline->GetStage(Shader::LogicalStage::Compute);
+    std::string shader_source = GenerateCopyShaderSource(cs);
+    auto device = GetInstance().GetDevice();
+    auto shader_module = Vulkan::Compile(shader_source, vk::ShaderStageFlagBits::eCompute, device);
+
+    if (ExecuteShaderHLE(cs, liverpool->regs, cs_program, *this, shader_module)) {
         return;
     }
+
 
     if (!BindResources(pipeline)) {
         return;

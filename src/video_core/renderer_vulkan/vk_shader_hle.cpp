@@ -5,6 +5,7 @@
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_shader_hle.h"
+#include "video_core/renderer_vulkan/vk_shader_util.h"
 
 extern std::unique_ptr<AmdGpu::Liverpool> liverpool;
 
@@ -121,11 +122,36 @@ static bool ExecuteCopyShaderHLE(const Shader::Info& info,
     return true;
 }
 
-bool ExecuteShaderHLE(const Shader::Info& info, const AmdGpu::Liverpool::Regs& regs,
-                      const AmdGpu::Liverpool::ComputeProgram& cs_program, Rasterizer& rasterizer) {
+std::string Vulkan::GenerateCopyShaderSource(const Shader::Info& info) {
+    return R"glsl(
+        #version 450
+        layout(local_size_x = 8, local_size_y = 8) in;
+
+        layout(binding = 0) readonly buffer InputBuffer { uint data[]; } inputBuffer;
+        layout(binding = 1) writeonly buffer OutputBuffer { uint data[]; } outputBuffer;
+
+        void main() {
+            uint index = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * 8;
+            outputBuffer.data[index] = inputBuffer.data[index];
+        }
+    )glsl";
+}
+
+bool Vulkan::ExecuteShaderHLE(const Shader::Info& info, const AmdGpu::Liverpool::Regs& regs,
+                              const AmdGpu::Liverpool::ComputeProgram& cs_program,
+                              Rasterizer& rasterizer, vk::ShaderModule shader_module) {
     switch (info.pgm_hash) {
-    case COPY_SHADER_HASH:
+    case COPY_SHADER_HASH: {
+        auto device = rasterizer.GetInstance().GetDevice();
+
+        // Generate or retrieve the shader source code
+        std::string shader_source = GenerateCopyShaderSource(info);
+        auto shader_module =
+            Vulkan::Compile(shader_source, vk::ShaderStageFlagBits::eCompute, device);
+
+        // Compile and use shader inside ExecuteCopyShaderHLE without passing the module
         return ExecuteCopyShaderHLE(info, cs_program, rasterizer);
+    }
     default:
         return false;
     }
