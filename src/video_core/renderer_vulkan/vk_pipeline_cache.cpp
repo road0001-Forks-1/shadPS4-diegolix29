@@ -191,6 +191,12 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
                              AmdGpu::Liverpool* liverpool_)
     : instance{instance_}, scheduler{scheduler_}, liverpool{liverpool_},
       desc_heap{instance, scheduler.GetMasterSemaphore(), DescriptorHeapSizes} {
+    const auto shader_cache_dir =
+        Common::FS::GetUserPath(Common::FS::PathType::ShaderDir) / "cache";
+    if (!std::filesystem::exists(shader_cache_dir)) {
+        std::filesystem::create_directories(shader_cache_dir);
+        LOG_INFO(Loader, "Created shader cache directory: {}", shader_cache_dir.string());
+    }
     const auto& vk12_props = instance.GetVk12Properties();
     profile = Shader::Profile{
         .supported_spirv = instance.ApiVersion() >= VK_API_VERSION_1_3 ? 0x00010600U : 0x00010500U,
@@ -507,7 +513,7 @@ vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info, Shader::Runtim
     const auto ir_program = Shader::TranslateProgram(code, pools, info, runtime_info, profile);
 
     std::string shader_name = GetShaderName(info.stage, info.pgm_hash, perm_idx);
-    std::string spirv_cache_filename = shader_name + "_" + Common::g_scm_rev + ".spv ";
+    std::string spirv_cache_filename = shader_name + "_" ".spv";
 
     const auto shader_cache_dir =
         Common::FS::GetUserPath(Common::FS::PathType::ShaderDir) / "cache";
