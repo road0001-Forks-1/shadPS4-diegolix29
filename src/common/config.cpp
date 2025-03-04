@@ -111,8 +111,7 @@ std::string getLedColor() {
     return "#FFFFFF";
 }
 
-void setLedColor(const std::string& color) {
-}
+void setLedColor(const std::string& color) {}
 
 // Language
 u32 m_language = 1; // english
