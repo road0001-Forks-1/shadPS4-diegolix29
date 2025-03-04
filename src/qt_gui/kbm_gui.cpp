@@ -2,19 +2,19 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <fstream>
+#include <QColorDialog>
 #include <QKeyEvent>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QWheelEvent>
-#include <QColorDialog>
 
 #include "common/path_util.h"
 #include "kbm_config_dialog.h"
 #include "kbm_gui.h"
 #include "kbm_help_dialog.h"
-#include "ui_kbm_gui.h"
 #include "src/common/config.h"
+#include "ui_kbm_gui.h"
 #ifdef ENABLE_OPENRGB
 #include "OpenRGBSDK.h"
 #endif
@@ -1084,7 +1084,7 @@ void KBMSettings::ApplyLedColor() {
     qDebug() << "No compatible LED API found!";
 }
 bool KBMSettings::ApplyOpenRGB(int r, int g, int b) {
-    //here should be implementation for individual api like razer chroma, logitec and so...
+    // here should be implementation for individual api like razer chroma, logitec and so...
 }
 
 KBMSettings::~KBMSettings() {}

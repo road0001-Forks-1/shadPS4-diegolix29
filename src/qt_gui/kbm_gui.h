@@ -20,7 +20,7 @@ private Q_SLOTS:
     void CheckMapping(QPushButton*& button);
     void StartTimer(QPushButton*& button);
     void onHelpClicked();
-    void onLedColorClicked(); 
+    void onLedColorClicked();
 
 private:
     std::unique_ptr<Ui::KBMSettings> ui;
