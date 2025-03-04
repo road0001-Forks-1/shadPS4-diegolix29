@@ -20,6 +20,7 @@ private Q_SLOTS:
     void CheckMapping(QPushButton*& button);
     void StartTimer(QPushButton*& button);
     void onHelpClicked();
+    void onLedColorClicked(); 
 
 private:
     std::unique_ptr<Ui::KBMSettings> ui;
@@ -32,12 +33,17 @@ private:
     void DisableMappingButtons();
     void EnableMappingButtons();
     void SetMapping(QString input);
+    bool ApplyOpenRGB(int r, int g, int b);
+    bool ApplyRazerChroma(int r, int g, int b);
+    bool ApplyLogitech(int r, int g, int b);
 
     bool EnableMapping = false;
     bool MappingCompleted = false;
     bool HelpWindowOpen = false;
     QString mapping;
     QString modifier;
+    QString led_color;
+    void ApplyLedColor();
     int MappingTimer;
     QTimer* timer;
     QPushButton* MappingButton;

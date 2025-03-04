@@ -1050,9 +1050,33 @@ endif()
 if (ENABLE_QT_GUI)
     target_link_libraries(shadps4 PRIVATE Qt6::Widgets Qt6::Concurrent Qt6::Network Qt6::Multimedia)
     add_definitions(-DENABLE_QT_GUI)
+
     if (ENABLE_UPDATER)
         add_definitions(-DENABLE_UPDATER)
     endif()
+
+    # OpenRGB Integration
+    if (ENABLE_OPENRGB)
+    include_directories("C:/Program Files/OpenRGB/SDK/")
+    link_directories("C:/Program Files/OpenRGB/lib/")
+    target_link_libraries(shadps4 PRIVATE OpenRGB)
+    add_definitions(-DENABLE_OPENRGB)
+endif()
+
+if (ENABLE_RAZER_CHROMA)
+    include_directories("C:/Program Files (x86)/Razer Chroma SDK/inc/")
+    link_directories("C:/Program Files (x86)/Razer Chroma SDK/lib/")
+    target_link_libraries(shadps4 PRIVATE RazerChroma)
+    add_definitions(-DENABLE_RAZER_CHROMA)
+endif()
+
+if (ENABLE_LOGITECH)
+    include_directories("C:/Program Files/Logitech Gaming Software/SDK/Include/")
+    link_directories("C:/Program Files/Logitech Gaming Software/SDK/Lib/")
+    target_link_libraries(shadps4 PRIVATE LogitechLEDLib)
+    add_definitions(-DENABLE_LOGITECH)
+endif()
+
 endif()
 
 if (WIN32)

@@ -105,7 +105,15 @@ static bool showBackgroundImage = true;
 static bool isFullscreen = false;
 static std::string fullscreenMode = "Windowed";
 static bool isHDRAllowed = false;
+static std::string led_color = "#FFFFFF"; // Default color
 
+std::string Config::getLedColor() {
+    return led_color;
+}
+
+void Config::setLedColor(const std::string& color) {
+    led_color = color;
+}
 // Language
 u32 m_language = 1; // english
 

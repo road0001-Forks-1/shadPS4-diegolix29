@@ -753,7 +753,24 @@
                    </property>
                   </widget>
                  </item>
-                </layout>
+					<item>
+					<widget class="QPushButton" name="LedColorButton">
+						<property name="focusPolicy">
+							<enum>Qt::FocusPolicy::NoFocus</enum>
+						</property>
+						<property name="text">
+							<string>Select LED Color</string>
+						</property>
+					</widget>
+				</item>
+					<item>
+						<widget class="QLabel" name="LedColorLabel">
+							<property name="text">
+								<string>LED Color: #FFFFFF</string>
+							</property>
+						</widget>
+					</item>
+				</layout>	
                </widget>
               </item>
              </layout>

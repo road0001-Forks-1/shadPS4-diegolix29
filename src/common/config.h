@@ -38,6 +38,8 @@ std::string getLogType();
 std::string getUserName();
 std::string getUpdateChannel();
 std::string getChooseHomeTab();
+std::string getLedColor();
+void setLedColor(const std::string& color);
 
 s16 getCursorState();
 int getCursorHideTimeout();

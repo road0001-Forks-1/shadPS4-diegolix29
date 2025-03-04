@@ -7,12 +7,25 @@
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QWheelEvent>
+#include <QColorDialog>
 
 #include "common/path_util.h"
 #include "kbm_config_dialog.h"
 #include "kbm_gui.h"
 #include "kbm_help_dialog.h"
 #include "ui_kbm_gui.h"
+#include "src/common/config.h"
+#ifdef ENABLE_OPENRGB
+#include "OpenRGBSDK.h"
+#endif
+
+#ifdef ENABLE_RAZER_CHROMA
+#include "RzChromaSDK.h"
+#endif
+
+#ifdef ENABLE_LOGITECH
+#include "LogitechLEDLib.h"
+#endif
 
 HelpDialog* HelpWindow;
 
@@ -20,6 +33,8 @@ KBMSettings::KBMSettings(std::shared_ptr<GameInfoClass> game_info_get, QWidget* 
     : QDialog(parent), m_game_info(game_info_get), ui(new Ui::KBMSettings) {
 
     ui->setupUi(this);
+    led_color = QString::fromStdString(Config::getLedColor());
+    ui->LedColorLabel->setText("LED Color: " + led_color);
     ui->PerGameCheckBox->setChecked(!Config::GetUseUnifiedInputConfig());
     ui->TextEditorButton->setFocus();
     this->setFocusPolicy(Qt::StrongFocus);
@@ -64,6 +79,7 @@ KBMSettings::KBMSettings(std::shared_ptr<GameInfoClass> game_info_get, QWidget* 
     });
 
     connect(ui->HelpButton, &QPushButton::clicked, this, &KBMSettings::onHelpClicked);
+    connect(ui->LedColorButton, &QPushButton::clicked, this, &KBMSettings::onLedColorClicked);
     connect(ui->TextEditorButton, &QPushButton::clicked, this, [this]() {
         auto kbmWindow = new EditorDialog(this);
         kbmWindow->exec();
@@ -1042,6 +1058,33 @@ bool KBMSettings::eventFilter(QObject* obj, QEvent* event) {
         }
     }
     return QDialog::eventFilter(obj, event);
+}
+
+void KBMSettings::onLedColorClicked() {
+    QColor color = QColorDialog::getColor(Qt::white, this, "Select LED Color");
+    if (color.isValid()) {
+        led_color = color.name();
+        ui->LedColorLabel->setText("LED Color: " + led_color);
+    }
+}
+
+void KBMSettings::ApplyLedColor() {
+    QColor selectedColor = QColor(led_color);
+    int red = selectedColor.red();
+    int green = selectedColor.green();
+    int blue = selectedColor.blue();
+
+    if (ApplyOpenRGB(red, green, blue))
+        return;
+    if (ApplyRazerChroma(red, green, blue))
+        return;
+    if (ApplyLogitech(red, green, blue))
+        return;
+
+    qDebug() << "No compatible LED API found!";
+}
+bool KBMSettings::ApplyOpenRGB(int r, int g, int b) {
+    //here should be implementation for individual api like razer chroma, logitec and so...
 }
 
 KBMSettings::~KBMSettings() {}
