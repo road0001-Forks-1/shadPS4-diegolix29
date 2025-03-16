@@ -27,10 +27,8 @@ static constexpr spv::ExecutionMode GetInputPrimitiveType(AmdGpu::PrimitiveType 
     case AmdGpu::PrimitiveType::TriangleList:
     case AmdGpu::PrimitiveType::TriangleStrip:
         return spv::ExecutionMode::Triangles;
-    case AmdGpu::PrimitiveType::AdjTriangleList:
-        return spv::ExecutionMode::InputTrianglesAdjacency;
     default:
-        UNREACHABLE_MSG("Unknown input primitive type {}", u32(type));
+        UNREACHABLE();
     }
 }
 
@@ -43,7 +41,7 @@ static constexpr spv::ExecutionMode GetOutputPrimitiveType(AmdGpu::GsOutputPrimi
     case AmdGpu::GsOutputPrimitiveType::TriangleStrip:
         return spv::ExecutionMode::OutputTriangleStrip;
     default:
-        UNREACHABLE_MSG("Unknown output primitive type {}", u32(type));
+        UNREACHABLE();
     }
 }
 

@@ -15,18 +15,18 @@ CopyShaderData ParseCopyShader(const std::span<const u32>& code) {
     ASSERT_MSG(code[0] == token_mov_vcchi, "First instruction is not s_mov_b32 vcc_hi, #imm");
 
     std::array<s32, 32> offsets{};
-    offsets.fill(-1);
-
-    std::array<s32, 256> sources{};
-    sources.fill(-1);
+    std::fill(offsets.begin(), offsets.end(), -1);
 
     CopyShaderData data{};
+    Gcn::OperandField sgpr{};
     auto last_attr{IR::Attribute::Position0};
+    s32 soffset{0};
     while (!code_slice.atEnd()) {
         auto inst = decoder.decodeInstruction(code_slice);
         switch (inst.opcode) {
         case Gcn::Opcode::S_MOVK_I32: {
-            sources[inst.dst[0].code] = inst.control.sopk.simm;
+            sgpr = inst.dst[0].field;
+            soffset = inst.control.sopk.simm;
             break;
         }
         case Gcn::Opcode::EXP: {
@@ -46,9 +46,8 @@ CopyShaderData ParseCopyShader(const std::span<const u32>& code) {
         case Gcn::Opcode::BUFFER_LOAD_DWORD: {
             offsets[inst.src[1].code] = inst.control.mubuf.offset;
             if (inst.src[3].field != Gcn::OperandField::ConstZero) {
-                const u32 index = inst.src[3].code;
-                ASSERT(sources[index] != -1);
-                offsets[inst.src[1].code] += sources[index];
+                ASSERT(inst.src[3].field == sgpr);
+                offsets[inst.src[1].code] += soffset;
             }
             break;
         }
@@ -60,7 +59,6 @@ CopyShaderData ParseCopyShader(const std::span<const u32>& code) {
     if (last_attr != IR::Attribute::Position0) {
         data.num_attrs = static_cast<u32>(last_attr) - static_cast<u32>(IR::Attribute::Param0) + 1;
     }
-
     return data;
 }
 
