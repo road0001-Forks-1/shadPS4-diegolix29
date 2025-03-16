@@ -16,10 +16,6 @@
 
 namespace Vulkan {
 
-static constexpr auto gp_stage_flags = vk::ShaderStageFlagBits::eVertex |
-                                       vk::ShaderStageFlagBits::eGeometry |
-                                       vk::ShaderStageFlagBits::eFragment;
-
 GraphicsPipeline::GraphicsPipeline(const Instance& instance_, Scheduler& scheduler_,
                                    DescriptorHeap& desc_heap_, const GraphicsPipelineKey& key_,
                                    vk::PipelineCache pipeline_cache,
@@ -31,7 +27,7 @@ GraphicsPipeline::GraphicsPipeline(const Instance& instance_, Scheduler& schedul
     BuildDescSetLayout();
 
     const vk::PushConstantRange push_constants = {
-        .stageFlags = gp_stage_flags,
+        .stageFlags = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
         .offset = 0,
         .size = sizeof(Shader::PushData),
     };
@@ -87,7 +83,7 @@ GraphicsPipeline::GraphicsPipeline(const Instance& instance_, Scheduler& schedul
         .pVertexAttributeDescriptions = vertex_attributes.data(),
     };
 
-    if (key.prim_type == AmdGpu::PrimitiveType::RectList && !IsEmbeddedVs()) {
+    if (key.prim_type == Liverpool::PrimitiveType::RectList && !IsEmbeddedVs()) {
         LOG_WARNING(Render_Vulkan,
                     "Rectangle List primitive type is only supported for embedded VS");
     }
@@ -200,20 +196,12 @@ GraphicsPipeline::GraphicsPipeline(const Instance& instance_, Scheduler& schedul
         },
     };
 
+    auto stage = u32(Shader::Stage::Vertex);
     boost::container::static_vector<vk::PipelineShaderStageCreateInfo, MaxShaderStages>
         shader_stages;
-    auto stage = u32(Shader::Stage::Vertex);
     if (infos[stage]) {
         shader_stages.emplace_back(vk::PipelineShaderStageCreateInfo{
             .stage = vk::ShaderStageFlagBits::eVertex,
-            .module = modules[stage],
-            .pName = "main",
-        });
-    }
-    stage = u32(Shader::Stage::Geometry);
-    if (infos[stage]) {
-        shader_stages.emplace_back(vk::PipelineShaderStageCreateInfo{
-            .stage = vk::ShaderStageFlagBits::eGeometry,
             .module = modules[stage],
             .pName = "main",
         });
@@ -334,7 +322,7 @@ void GraphicsPipeline::BuildDescSetLayout() {
                 .descriptorType = buffer.IsStorage(sharp) ? vk::DescriptorType::eStorageBuffer
                                                           : vk::DescriptorType::eUniformBuffer,
                 .descriptorCount = 1,
-                .stageFlags = gp_stage_flags,
+                .stageFlags = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
             });
         }
         for (const auto& tex_buffer : stage->texture_buffers) {
@@ -343,7 +331,7 @@ void GraphicsPipeline::BuildDescSetLayout() {
                 .descriptorType = tex_buffer.is_written ? vk::DescriptorType::eStorageTexelBuffer
                                                         : vk::DescriptorType::eUniformTexelBuffer,
                 .descriptorCount = 1,
-                .stageFlags = gp_stage_flags,
+                .stageFlags = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
             });
         }
         for (const auto& image : stage->images) {
@@ -352,7 +340,7 @@ void GraphicsPipeline::BuildDescSetLayout() {
                 .descriptorType = image.is_storage ? vk::DescriptorType::eStorageImage
                                                    : vk::DescriptorType::eSampledImage,
                 .descriptorCount = 1,
-                .stageFlags = gp_stage_flags,
+                .stageFlags = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
             });
         }
         for (const auto& sampler : stage->samplers) {
@@ -360,7 +348,7 @@ void GraphicsPipeline::BuildDescSetLayout() {
                 .binding = binding++,
                 .descriptorType = vk::DescriptorType::eSampler,
                 .descriptorCount = 1,
-                .stageFlags = gp_stage_flags,
+                .stageFlags = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
             });
         }
     }
@@ -532,7 +520,9 @@ void GraphicsPipeline::BindResources(const Liverpool::Regs& regs,
                                       desc_set, {});
         }
     }
-    cmdbuf.pushConstants(*pipeline_layout, gp_stage_flags, 0U, sizeof(push_data), &push_data);
+    cmdbuf.pushConstants(*pipeline_layout,
+                         vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0U,
+                         sizeof(push_data), &push_data);
     cmdbuf.bindPipeline(vk::PipelineBindPoint::eGraphics, Handle());
 }
 

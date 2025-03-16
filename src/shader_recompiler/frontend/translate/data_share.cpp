@@ -55,6 +55,12 @@ void Translator::EmitDataShare(const GcnInst& inst) {
     }
 }
 
+// SOPP
+
+void Translator::S_BARRIER() {
+    ir.Barrier();
+}
+
 // VOP2
 
 void Translator::V_READFIRSTLANE_B32(const GcnInst& inst) {

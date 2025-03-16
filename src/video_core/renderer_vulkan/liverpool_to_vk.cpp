@@ -61,34 +61,34 @@ vk::CompareOp CompareOp(Liverpool::CompareFunc func) {
     }
 }
 
-vk::PrimitiveTopology PrimitiveType(AmdGpu::PrimitiveType type) {
+vk::PrimitiveTopology PrimitiveType(Liverpool::PrimitiveType type) {
     switch (type) {
-    case AmdGpu::PrimitiveType::PointList:
+    case Liverpool::PrimitiveType::PointList:
         return vk::PrimitiveTopology::ePointList;
-    case AmdGpu::PrimitiveType::LineList:
+    case Liverpool::PrimitiveType::LineList:
         return vk::PrimitiveTopology::eLineList;
-    case AmdGpu::PrimitiveType::LineStrip:
+    case Liverpool::PrimitiveType::LineStrip:
         return vk::PrimitiveTopology::eLineStrip;
-    case AmdGpu::PrimitiveType::TriangleList:
+    case Liverpool::PrimitiveType::TriangleList:
         return vk::PrimitiveTopology::eTriangleList;
-    case AmdGpu::PrimitiveType::TriangleFan:
+    case Liverpool::PrimitiveType::TriangleFan:
         return vk::PrimitiveTopology::eTriangleFan;
-    case AmdGpu::PrimitiveType::TriangleStrip:
+    case Liverpool::PrimitiveType::TriangleStrip:
         return vk::PrimitiveTopology::eTriangleStrip;
-    case AmdGpu::PrimitiveType::AdjLineList:
+    case Liverpool::PrimitiveType::AdjLineList:
         return vk::PrimitiveTopology::eLineListWithAdjacency;
-    case AmdGpu::PrimitiveType::AdjLineStrip:
+    case Liverpool::PrimitiveType::AdjLineStrip:
         return vk::PrimitiveTopology::eLineStripWithAdjacency;
-    case AmdGpu::PrimitiveType::AdjTriangleList:
+    case Liverpool::PrimitiveType::AdjTriangleList:
         return vk::PrimitiveTopology::eTriangleListWithAdjacency;
-    case AmdGpu::PrimitiveType::AdjTriangleStrip:
+    case Liverpool::PrimitiveType::AdjTriangleStrip:
         return vk::PrimitiveTopology::eTriangleStripWithAdjacency;
-    case AmdGpu::PrimitiveType::PatchPrimitive:
+    case Liverpool::PrimitiveType::PatchPrimitive:
         return vk::PrimitiveTopology::ePatchList;
-    case AmdGpu::PrimitiveType::QuadList:
+    case Liverpool::PrimitiveType::QuadList:
         // Needs to generate index buffer on the fly.
         return vk::PrimitiveTopology::eTriangleList;
-    case AmdGpu::PrimitiveType::RectList:
+    case Liverpool::PrimitiveType::RectList:
         return vk::PrimitiveTopology::eTriangleStrip;
     default:
         UNREACHABLE();
