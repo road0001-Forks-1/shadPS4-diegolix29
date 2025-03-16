@@ -89,7 +89,6 @@ bool Inst::MayHaveSideEffects() const noexcept {
     case Opcode::ImageAtomicOr32:
     case Opcode::ImageAtomicXor32:
     case Opcode::ImageAtomicExchange32:
-    case Opcode::DebugPrint:
     case Opcode::EmitVertex:
     case Opcode::EmitPrimitive:
         return true;
