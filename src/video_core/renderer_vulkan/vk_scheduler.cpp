@@ -93,12 +93,14 @@ void Scheduler::AllocateWorkerCommandBuffers() {
     ASSERT_MSG(begin_result == vk::Result::eSuccess, "Failed to begin command buffer: {}",
                vk::to_string(begin_result));
 
+#if TRACY_GPU_ENABLED
     auto* profiler_ctx = instance.GetProfilerContext();
     if (profiler_ctx) {
         static const auto scope_loc =
             GPU_SCOPE_LOCATION("Guest Frame", MarkersPalette::GpuMarkerColor);
         new (profiler_scope) tracy::VkCtxScope{profiler_ctx, &scope_loc, current_cmdbuf, true};
     }
+#endif
 }
 
 void Scheduler::SubmitExecution(SubmitInfo& info) {
