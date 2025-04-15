@@ -189,7 +189,8 @@ const Shader::RuntimeInfo& PipelineCache::BuildRuntimeInfo(Stage stage, LogicalS
 PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
                              AmdGpu::Liverpool* liverpool_)
     : instance{instance_}, scheduler{scheduler_}, liverpool{liverpool_},
-      desc_heap{instance, scheduler.GetMasterSemaphore(), DescriptorHeapSizes} {
+      desc_heap{instance, scheduler.GetMasterSemaphore(), DescriptorHeapSizes}, cache_hits{0},
+      total_requests{0} {
     const auto& vk12_props = instance.GetVk12Properties();
     profile = Shader::Profile{
         .supported_spirv = instance.ApiVersion() >= VK_API_VERSION_1_3 ? 0x00010600U : 0x00010500U,
@@ -219,9 +220,15 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
     ASSERT_MSG(cache_result == vk::Result::eSuccess, "Failed to create pipeline cache: {}",
                vk::to_string(cache_result));
     pipeline_cache = std::move(cache);
+
+    LoadSpirvCache();
+    LoadPipelineCache();
 }
 
-PipelineCache::~PipelineCache() = default;
+PipelineCache::~PipelineCache() {
+    SaveSpirvCache();
+    SavePipelineCache();
+}
 
 const GraphicsPipeline* PipelineCache::GetGraphicsPipeline() {
     if (!RefreshGraphicsKey()) {
@@ -488,30 +495,51 @@ vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info, Shader::Runtim
              perm_idx != 0 ? "(permutation)" : "");
     DumpShader(code, info.pgm_hash, info.stage, perm_idx, "bin");
 
-    const auto ir_program = Shader::TranslateProgram(code, pools, info, runtime_info, profile);
-    auto spv = Shader::Backend::SPIRV::EmitSPIRV(profile, runtime_info, ir_program, binding);
-    DumpShader(spv, info.pgm_hash, info.stage, perm_idx, "spv");
+    SpirvCacheKey cache_key{info.pgm_hash, perm_idx};
 
     vk::ShaderModule module;
+    std::vector<u32> spv;
 
-    auto patch = GetShaderPatch(info.pgm_hash, info.stage, perm_idx, "spv");
-    const bool is_patched = patch && Config::patchShaders();
-    if (is_patched) {
-        LOG_INFO(Loader, "Loaded patch for {} shader {:#x}", info.stage, info.pgm_hash);
-        module = CompileSPV(*patch, instance.GetDevice());
-    } else {
+    auto cache_it = spirv_cache.find(cache_key);
+    ++total_requests;
+    if (cache_it != spirv_cache.end()) {
+        ++cache_hits;
+        LOG_INFO(Render_Vulkan, "Loading cached SPIR-V for {} shader {:#x} perm {}", info.stage,
+                 info.pgm_hash, perm_idx);
+
+        spv = cache_it->second;
         module = CompileSPV(spv, instance.GetDevice());
+    } else {
+        const auto ir_program = Shader::TranslateProgram(code, pools, info, runtime_info, profile);
+        spv = Shader::Backend::SPIRV::EmitSPIRV(profile, runtime_info, ir_program, binding);
+
+        spirv_cache[cache_key] = spv;
+        spirv_cache_dirty = true;
+
+        DumpShader(spv, info.pgm_hash, info.stage, perm_idx, "spv");
+
+        auto shader_patch = GetShaderPatch(info.pgm_hash, info.stage, perm_idx, "spv");
+        const bool has_patch = shader_patch.has_value() && Config::patchShaders();
+        if (has_patch) {
+            LOG_INFO(Loader, "Loaded patch for {} shader {:#x}", info.stage, info.pgm_hash);
+            module = CompileSPV(*shader_patch, instance.GetDevice());
+        } else {
+            module = CompileSPV(spv, instance.GetDevice());
+        }
     }
 
     const auto name = GetShaderName(info.stage, info.pgm_hash, perm_idx);
     Vulkan::SetObjectName(instance.GetDevice(), module, name);
     if (Config::collectShadersForDebug()) {
-        DebugState.CollectShader(name, info.l_stage, module, spv, code,
-                                 patch ? *patch : std::span<const u32>{}, is_patched);
+        DebugState.CollectShader(name, info.l_stage, module, spv, code, std::span<const u32>{},
+                                 false);
     }
+
+    LOG_INFO(Render_Vulkan, "Shader cache hit rate: {}/{} ({:.2f}%)", cache_hits, total_requests,
+             (cache_hits * 100.0) / total_requests);
+
     return module;
 }
-
 PipelineCache::Result PipelineCache::GetProgram(Stage stage, LogicalStage l_stage,
                                                 Shader::ShaderParams params,
                                                 Shader::Backend::Bindings& binding) {
@@ -528,14 +556,12 @@ PipelineCache::Result PipelineCache::GetProgram(Stage stage, LogicalStage l_stag
                                HashCombine(params.hash, 0));
     }
     it_pgm.value()->info.user_data = params.user_data;
-
     auto& program = it_pgm.value();
     auto& info = program->info;
     info.RefreshFlatBuf();
     const auto spec = Shader::StageSpecialization(info, runtime_info, profile, binding);
     size_t perm_idx = program->modules.size();
     vk::ShaderModule module{};
-
     const auto it = std::ranges::find(program->modules, spec, &Program::Module::spec);
     if (it == program->modules.end()) {
         auto new_info = Shader::Info(stage, l_stage, params);
@@ -549,7 +575,6 @@ PipelineCache::Result PipelineCache::GetProgram(Stage stage, LogicalStage l_stag
     return std::make_tuple(&info, module, spec.fetch_shader_data,
                            HashCombine(params.hash, perm_idx));
 }
-
 std::optional<vk::ShaderModule> PipelineCache::ReplaceShader(vk::ShaderModule module,
                                                              std::span<const u32> spv_code) {
     std::optional<vk::ShaderModule> new_module{};
@@ -577,7 +602,6 @@ std::optional<vk::ShaderModule> PipelineCache::ReplaceShader(vk::ShaderModule mo
     }
     return new_module;
 }
-
 std::string PipelineCache::GetShaderName(Shader::Stage stage, u64 hash,
                                          std::optional<size_t> perm) {
     if (perm) {
@@ -585,13 +609,11 @@ std::string PipelineCache::GetShaderName(Shader::Stage stage, u64 hash,
     }
     return fmt::format("{}_{:#018x}", stage, hash);
 }
-
 void PipelineCache::DumpShader(std::span<const u32> code, u64 hash, Shader::Stage stage,
                                size_t perm_idx, std::string_view ext) {
     if (!Config::dumpShaders()) {
         return;
     }
-
     using namespace Common::FS;
     const auto dump_dir = GetUserPath(PathType::ShaderDir) / "dumps";
     if (!std::filesystem::exists(dump_dir)) {
@@ -601,11 +623,9 @@ void PipelineCache::DumpShader(std::span<const u32> code, u64 hash, Shader::Stag
     const auto file = IOFile{dump_dir / filename, FileAccessMode::Write};
     file.WriteSpan(code);
 }
-
 std::optional<std::vector<u32>> PipelineCache::GetShaderPatch(u64 hash, Shader::Stage stage,
                                                               size_t perm_idx,
                                                               std::string_view ext) {
-
     using namespace Common::FS;
     const auto patch_dir = GetUserPath(PathType::ShaderDir) / "patch";
     if (!std::filesystem::exists(patch_dir)) {
@@ -620,6 +640,157 @@ std::optional<std::vector<u32>> PipelineCache::GetShaderPatch(u64 hash, Shader::
     std::vector<u32> code(file.GetSize() / sizeof(u32));
     file.Read(code);
     return code;
+}
+
+std::string PipelineCache::GetShaderCachePath() const {
+    using namespace Common::FS;
+    std::filesystem::path cache_dir = GetUserPath(PathType::ShaderDir) / "cache";
+    if (!std::filesystem::exists(cache_dir)) {
+        std::filesystem::create_directories(cache_dir);
+    }
+    return cache_dir.string();
+}
+std::string PipelineCache::GetPipelineCachePath() const {
+    return fmt::format("{}/pipeline.cache", GetShaderCachePath());
+}
+std::string PipelineCache::GetSpirvCachePath() const {
+    return fmt::format("{}/spirv.cache", GetShaderCachePath());
+}
+bool PipelineCache::SavePipelineCache() {
+    if (!Config::useShaderCache()) {
+        return false;
+    }
+
+    const auto path = GetPipelineCachePath();
+
+    size_t data_size = 0;
+    auto result = instance.GetDevice().getPipelineCacheData(*pipeline_cache, &data_size, nullptr);
+    if (result != vk::Result::eSuccess || data_size == 0) {
+        LOG_WARNING(Render_Vulkan, "Failed to get pipeline cache data size: {}",
+                    vk::to_string(result));
+        return false;
+    }
+    std::vector<u8> data(data_size);
+    result = instance.GetDevice().getPipelineCacheData(*pipeline_cache, &data_size, data.data());
+    if (result != vk::Result::eSuccess) {
+        LOG_WARNING(Render_Vulkan, "Failed to get pipeline cache data: {}", vk::to_string(result));
+        return false;
+    }
+    const auto file = Common::FS::IOFile{path, Common::FS::FileAccessMode::Write};
+    if (!file.IsOpen()) {
+        LOG_WARNING(Render_Vulkan, "Failed to open pipeline cache file for writing");
+        return false;
+    }
+    if (file.Write(data) != data.size()) {
+        LOG_WARNING(Render_Vulkan, "Failed to write pipeline cache data");
+        return false;
+    }
+
+    LOG_INFO(Render_Vulkan, "Saved pipeline cache to {}", path);
+    return true;
+}
+bool PipelineCache::LoadPipelineCache() {
+    if (!Config::useShaderCache()) {
+        return false;
+    }
+    const auto path = GetPipelineCachePath();
+    Common::FS::IOFile file{path, Common::FS::FileAccessMode::Read};
+    if (!file.IsOpen()) {
+        LOG_INFO(Render_Vulkan, "No pipeline cache file found at {}", path);
+        return false;
+    }
+    const auto size = file.GetSize();
+    std::vector<u8> data(size);
+    if (file.Read(data) != data.size()) {
+        LOG_WARNING(Render_Vulkan, "Failed to read pipeline cache data");
+        return false;
+    }
+    if (size < 16 || std::memcmp(data.data(), "VkPC", 4) != 0) {
+        LOG_WARNING(Render_Vulkan, "Invalid pipeline cache data format");
+        return false;
+    }
+    vk::PipelineCacheCreateInfo create_info;
+    create_info.initialDataSize = data.size();
+    create_info.pInitialData = data.data();
+    auto [result, cache] = instance.GetDevice().createPipelineCacheUnique(create_info);
+    if (result != vk::Result::eSuccess) {
+        LOG_WARNING(Render_Vulkan, "Failed to create pipeline cache from file: {}",
+                    vk::to_string(result));
+        return false;
+    }
+    pipeline_cache = std::move(cache);
+    LOG_INFO(Render_Vulkan, "Loaded pipeline cache from {}, size: {} bytes", path, size);
+    return true;
+}
+bool PipelineCache::SaveSpirvCache() {
+    if (!Config::useShaderCache() || !spirv_cache_dirty) {
+        return false;
+    }
+    const auto path = GetSpirvCachePath();
+    const auto file = Common::FS::IOFile{path, Common::FS::FileAccessMode::Write};
+    if (!file.IsOpen()) {
+        LOG_WARNING(Render_Vulkan, "Failed to open SPIRV cache file for writing");
+        return false;
+    }
+    const u64 count = spirv_cache.size();
+    if (!file.WriteObject(count)) {
+        LOG_WARNING(Render_Vulkan, "Failed to write SPIRV cache header");
+        return false;
+    }
+    for (const auto& [key, spv] : spirv_cache) {
+        if (!file.WriteObject(key.first) || !file.WriteObject(key.second)) {
+            LOG_WARNING(Render_Vulkan, "Failed to write SPIRV cache key");
+            return false;
+        }
+        const u64 spv_size = spv.size();
+        if (!file.WriteObject(spv_size) ||
+            file.Write(spv) != spv.size() * sizeof(spv[0])) {
+            LOG_WARNING(Render_Vulkan, "Failed to write SPIRV cache data");
+            return false;
+        }
+    }
+    LOG_INFO(Render_Vulkan, "Saved SPIRV cache to {}, {} entries", path, count);
+    spirv_cache_dirty = false;
+    return true;
+}
+bool PipelineCache::LoadSpirvCache() {
+    if (!Config::useShaderCache()) {
+        return false;
+    }
+    const auto path = GetSpirvCachePath();
+    Common::FS::IOFile file{path, Common::FS::FileAccessMode::Read};
+    if (!file.IsOpen()) {
+        LOG_INFO(Render_Vulkan, "No SPIRV cache file found at {}", path);
+        return false;
+    }
+    u64 count = 0;
+    if (!file.ReadObject(count)) {
+        LOG_WARNING(Render_Vulkan, "Failed to read SPIRV cache header");
+        return false;
+    }
+    spirv_cache.clear();
+    for (u64 i = 0; i < count; ++i) {
+        u64 hash = 0;
+        size_t perm_idx = 0;
+        if (!file.ReadObject(hash) || !file.ReadObject(perm_idx)) {
+            LOG_WARNING(Render_Vulkan, "Failed to read SPIRV cache key at index {}", i);
+            return false;
+        }
+        u64 spv_size = 0;
+        if (!file.ReadObject(spv_size)) {
+            LOG_WARNING(Render_Vulkan, "Failed to read SPIRV size at index {}", i);
+            return false;
+        }
+        std::vector<u32> spv(spv_size);
+        if (file.Read(spv) != spv.size() * sizeof(spv[0])) {
+            LOG_WARNING(Render_Vulkan, "Failed to read SPIRV data at index {}", i);
+            return false;
+        }
+        spirv_cache[{hash, perm_idx}] = std::move(spv);
+    }
+    LOG_INFO(Render_Vulkan, "Loaded SPIRV cache from {}, {} entries", path, count);
+    spirv_cache_dirty = false;
+    return true;
 }
 
 } // namespace Vulkan

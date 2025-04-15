@@ -85,6 +85,33 @@ private:
                                    Shader::Backend::Bindings& binding);
     const Shader::RuntimeInfo& BuildRuntimeInfo(Shader::Stage stage, Shader::LogicalStage l_stage);
 
+    // ??shader?????
+    bool SavePipelineCache();
+    bool LoadPipelineCache();
+
+    // ?SPIR-V???????
+    bool SaveSpirvCache();
+    bool LoadSpirvCache();
+
+    // ????
+    std::string GetShaderCachePath() const;
+    std::string GetPipelineCachePath() const;
+    std::string GetSpirvCachePath() const;
+
+    // ???SPIR-V??
+    using SpirvCacheKey = std::pair<u64, size_t>; // hash, perm_idx
+    struct SpirvCacheKeyHash {
+        size_t operator()(const SpirvCacheKey& key) const {
+            return std::hash<u64>{}(key.first) ^ std::hash<size_t>{}(key.second);
+        }
+    };
+    std::unordered_map<SpirvCacheKey, std::vector<u32>, SpirvCacheKeyHash> spirv_cache;
+    bool spirv_cache_dirty{false};
+
+    // ??????
+    u64 cache_hits{0};
+    u64 total_requests{0};
+
 private:
     const Instance& instance;
     Scheduler& scheduler;

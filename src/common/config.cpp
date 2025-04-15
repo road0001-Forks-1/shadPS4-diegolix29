@@ -78,6 +78,7 @@ static int controllerCustomColorRGB[3] = {0, 0, 255};
 static bool compatibilityData = false;
 static bool checkCompatibilityOnStartup = false;
 static std::string trophyKey;
+static bool shouldUseShaderCache = true;
 
 // Gui
 static bool load_game_size = true;
@@ -730,6 +731,15 @@ void setShowBackgroundImage(bool show) {
     showBackgroundImage = show;
 }
 
+bool useShaderCache() {
+    return shouldUseShaderCache;
+}
+
+void setUseShaderCache(bool enabled) {
+    shouldUseShaderCache = enabled;
+}
+
+
 void load(const std::filesystem::path& path) {
     // If the configuration file does not exist, create it and return
     std::error_code error;
@@ -799,6 +809,7 @@ void load(const std::filesystem::path& path) {
         shouldCopyGPUBuffers = toml::find_or<bool>(gpu, "copyGPUBuffers", false);
         shouldDumpShaders = toml::find_or<bool>(gpu, "dumpShaders", false);
         shouldPatchShaders = toml::find_or<bool>(gpu, "patchShaders", true);
+        shouldUseShaderCache = toml::find_or<bool>(gpu, "useShaderCache", true);
         vblankDivider = toml::find_or<int>(gpu, "vblankDivider", 1);
         isFullscreen = toml::find_or<bool>(gpu, "Fullscreen", false);
         fullscreenMode = toml::find_or<std::string>(gpu, "FullscreenMode", "Windowed");
@@ -982,10 +993,12 @@ void save(const std::filesystem::path& path) {
     data["GPU"]["copyGPUBuffers"] = shouldCopyGPUBuffers;
     data["GPU"]["dumpShaders"] = shouldDumpShaders;
     data["GPU"]["patchShaders"] = shouldPatchShaders;
+    data["GPU"]["useShaderCache"] = shouldUseShaderCache;
     data["GPU"]["vblankDivider"] = vblankDivider;
     data["GPU"]["Fullscreen"] = isFullscreen;
     data["GPU"]["FullscreenMode"] = fullscreenMode;
     data["GPU"]["allowHDR"] = isHDRAllowed;
+    data["GPU"]["useShaderCache"] = shouldUseShaderCache;
     data["Vulkan"]["gpuId"] = gpuId;
     data["Vulkan"]["validation"] = vkValidation;
     data["Vulkan"]["validation_sync"] = vkValidationSync;
@@ -1031,27 +1044,22 @@ void save(const std::filesystem::path& path) {
     data["GUI"]["installDirsEnabled"] = install_dirs_enabled;
     data["GUI"]["saveDataPath"] = std::string{fmt::UTF(save_data_path.u8string()).data};
     data["GUI"]["loadGameSizeEnabled"] = load_game_size;
-
     data["GUI"]["addonInstallDir"] =
         std::string{fmt::UTF(settings_addon_install_dir.u8string()).data};
     data["GUI"]["emulatorLanguage"] = emulator_language;
     data["GUI"]["backgroundImageOpacity"] = backgroundImageOpacity;
     data["GUI"]["showBackgroundImage"] = showBackgroundImage;
     data["Settings"]["consoleLanguage"] = m_language;
-
     // Sorting of TOML sections
     sortTomlSections(data);
-
     std::ofstream file(path, std::ios::binary);
     file << data;
     file.close();
-
     saveMainWindow(path);
 }
 
 void saveMainWindow(const std::filesystem::path& path) {
     toml::ordered_value data;
-
     std::error_code error;
     if (std::filesystem::exists(path, error)) {
         try {
@@ -1085,10 +1093,8 @@ void saveMainWindow(const std::filesystem::path& path) {
     data["GUI"]["geometry_h"] = main_window_geometry_h;
     data["GUI"]["elfDirs"] = m_elf_viewer;
     data["GUI"]["recentFiles"] = m_recent_files;
-
     // Sorting of TOML sections
     sortTomlSections(data);
-
     std::ofstream file(path, std::ios::binary);
     file << data;
     file.close();
@@ -1128,6 +1134,7 @@ void setDefaultValues() {
     isSideTrophy = "right";
     isNullGpu = false;
     shouldDumpShaders = false;
+    shouldUseShaderCache = true;
     vblankDivider = 1;
     vkValidation = false;
     vkValidationSync = false;
@@ -1146,9 +1153,7 @@ void setDefaultValues() {
 }
 
 constexpr std::string_view GetDefaultKeyboardConfig() {
-    return R"(#Feeling lost? Check out the Help section!
-
-# Keyboard bindings
+    return R"(# Keyboard bindings
 
 triangle = kp8
 circle = kp6
@@ -1159,27 +1164,22 @@ triangle = c
 circle = b
 cross = n
 square = v
-
 l1 = q
 r1 = u
 l2 = e
 r2 = o
 l3 = x
 r3 = m
-
 options = enter
 touchpad = space
-
 pad_up = up
 pad_down = down
 pad_left = left
 pad_right = right
-
 axis_left_x_minus = a
 axis_left_x_plus = d
 axis_left_y_minus = w
 axis_left_y_plus = s
-
 axis_right_x_minus = j
 axis_right_x_plus = l
 axis_right_y_minus = i
@@ -1188,25 +1188,21 @@ axis_right_y_plus = k
 # Controller bindings
 
 triangle = triangle
+circle = circle
 cross = cross
 square = square
-circle = circle
-
 l1 = l1
 l2 = l2
 l3 = l3
 r1 = r1
 r2 = r2
 r3 = r3
-
 options = options
 touchpad = back
-
 pad_up = pad_up
 pad_down = pad_down
 pad_left = pad_left
 pad_right = pad_right
-
 axis_left_x = axis_left_x
 axis_left_y = axis_left_y
 axis_right_x = axis_right_x
@@ -1219,11 +1215,11 @@ analog_deadzone = rightjoystick, 2, 127
 override_controller_color = false, 0, 0, 255
 )";
 }
+
 std::filesystem::path GetFoolproofKbmConfigFile(const std::string& game_id) {
     // Read configuration file of the game, and if it doesn't exist, generate it from default
     // If that doesn't exist either, generate that from getDefaultConfig() and try again
     // If even the folder is missing, we start with that.
-
     const auto config_dir = Common::FS::GetUserPath(Common::FS::PathType::UserDir) / "input_config";
     const auto config_file = config_dir / (game_id + ".ini");
     const auto default_config_file = config_dir / "default.ini";
@@ -1252,6 +1248,7 @@ std::filesystem::path GetFoolproofKbmConfigFile(const std::string& game_id) {
     if (!std::filesystem::exists(config_file)) {
         std::filesystem::copy(default_config_file, config_file);
     }
+
     return config_file;
 }
 

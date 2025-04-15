@@ -4,6 +4,7 @@
 #pragma once
 
 #include <filesystem>
+#include <map>
 #include <vector>
 #include "types.h"
 
@@ -89,6 +90,7 @@ void setNullGpu(bool enable);
 void setAllowHDR(bool enable);
 void setCopyGPUCmdBuffers(bool enable);
 void setDumpShaders(bool enable);
+void setPatchShaders(bool enable);
 void setVblankDiv(u32 value);
 void setGpuId(s32 selectedGpuId);
 void setScreenWidth(u32 width);
@@ -162,6 +164,7 @@ u32 getMainWindowGeometryW();
 u32 getMainWindowGeometryH();
 const std::vector<std::filesystem::path> getGameInstallDirs();
 const std::vector<bool> getGameInstallDirsEnabled();
+const std::vector<GameInstallDir> getAllGameInstallDirs();
 std::filesystem::path getAddonInstallDir();
 u32 getMainWindowTheme();
 u32 getIconSize();
@@ -171,9 +174,18 @@ u32 getSliderPositionGrid();
 u32 getTableMode();
 u32 getMainWindowWidth();
 u32 getMainWindowHeight();
+bool getPatchInfoSaved();
+bool getShaderIsPatched();
+void setPatchInfoSaved(bool saved);
+void setShaderIsPatched(bool patched);
 std::vector<std::string> getElfViewer();
 std::vector<std::string> getRecentFiles();
 std::string getEmulatorLanguage();
+
+// Shader patch related functions
+bool isPatchShadersEnabled();
+bool shouldPatchShader(const std::string& hash);
+std::map<std::string, bool> getShaderPatches();
 
 void setDefaultValues();
 
@@ -182,4 +194,11 @@ std::filesystem::path GetFoolproofKbmConfigFile(const std::string& game_id = "")
 
 // settings
 u32 GetLanguage();
+
+// Renderer
+bool useShaderCache();
+void setUseShaderCache();
+
+
+
 }; // namespace Config
