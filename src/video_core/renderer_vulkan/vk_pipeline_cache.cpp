@@ -540,6 +540,7 @@ vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info, Shader::Runtim
 
     return module;
 }
+
 PipelineCache::Result PipelineCache::GetProgram(Stage stage, LogicalStage l_stage,
                                                 Shader::ShaderParams params,
                                                 Shader::Backend::Bindings& binding) {
@@ -646,7 +647,14 @@ std::string PipelineCache::GetShaderCachePath() const {
     using namespace Common::FS;
     std::filesystem::path cache_dir = GetUserPath(PathType::ShaderDir) / "cache";
     if (!std::filesystem::exists(cache_dir)) {
-        std::filesystem::create_directories(cache_dir);
+        std::error_code ec;
+        std::filesystem::create_directories(cache_dir, ec);
+        if (ec) {
+            LOG_WARNING(Render_Vulkan, "Failed to create shader cache directory {}: {}",
+                        cache_dir.string(), ec.message());
+        } else {
+            LOG_INFO(Render_Vulkan, "Created shader cache directory: {}", cache_dir.string());
+        }
     }
     return cache_dir.string();
 }
@@ -678,7 +686,7 @@ bool PipelineCache::SavePipelineCache() {
     }
     const auto file = Common::FS::IOFile{path, Common::FS::FileAccessMode::Write};
     if (!file.IsOpen()) {
-        LOG_WARNING(Render_Vulkan, "Failed to open pipeline cache file for writing");
+        LOG_WARNING(Render_Vulkan, "Pipeline cache file not found or failed to open: {}", path);
         return false;
     }
     if (file.Write(data) != data.size()) {
@@ -693,7 +701,12 @@ bool PipelineCache::LoadPipelineCache() {
     if (!Config::useShaderCache()) {
         return false;
     }
+    if (!pipeline_cache) {
+        LOG_WARNING(Render_Vulkan, "Attempted to save pipeline cache but it was not initialized.");
+        return false;
+    }
     const auto path = GetPipelineCachePath();
+    LOG_INFO(Render_Vulkan, "Saving pipeline cache to {}", path);
     Common::FS::IOFile file{path, Common::FS::FileAccessMode::Read};
     if (!file.IsOpen()) {
         LOG_INFO(Render_Vulkan, "No pipeline cache file found at {}", path);
@@ -727,6 +740,7 @@ bool PipelineCache::SaveSpirvCache() {
         return false;
     }
     const auto path = GetSpirvCachePath();
+    LOG_INFO(Render_Vulkan, "Saving SPIRV cache to {}", path);
     const auto file = Common::FS::IOFile{path, Common::FS::FileAccessMode::Write};
     if (!file.IsOpen()) {
         LOG_WARNING(Render_Vulkan, "Failed to open SPIRV cache file for writing");
@@ -750,7 +764,7 @@ bool PipelineCache::SaveSpirvCache() {
         }
     }
     LOG_INFO(Render_Vulkan, "Saved SPIRV cache to {}, {} entries", path, count);
-    spirv_cache_dirty = false;
+    spirv_cache_dirty = true;
     return true;
 }
 bool PipelineCache::LoadSpirvCache() {
@@ -758,7 +772,8 @@ bool PipelineCache::LoadSpirvCache() {
         return false;
     }
     const auto path = GetSpirvCachePath();
-    Common::FS::IOFile file{path, Common::FS::FileAccessMode::Read};
+    LOG_INFO(Render_Vulkan, "Loading SPIRV cache to {}", path);
+    const auto file = Common::FS::IOFile{path, Common::FS::FileAccessMode::Read};
     if (!file.IsOpen()) {
         LOG_INFO(Render_Vulkan, "No SPIRV cache file found at {}", path);
         return false;
@@ -789,7 +804,7 @@ bool PipelineCache::LoadSpirvCache() {
         spirv_cache[{hash, perm_idx}] = std::move(spv);
     }
     LOG_INFO(Render_Vulkan, "Loaded SPIRV cache from {}, {} entries", path, count);
-    spirv_cache_dirty = false;
+    spirv_cache_dirty = true;
     return true;
 }
 
