@@ -739,7 +739,6 @@ void setUseShaderCache(bool enabled) {
     shouldUseShaderCache = enabled;
 }
 
-
 void load(const std::filesystem::path& path) {
     // If the configuration file does not exist, create it and return
     std::error_code error;

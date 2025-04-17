@@ -199,6 +199,4 @@ u32 GetLanguage();
 bool useShaderCache();
 void setUseShaderCache();
 
-
-
 }; // namespace Config

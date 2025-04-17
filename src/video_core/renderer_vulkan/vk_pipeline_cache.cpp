@@ -757,8 +757,7 @@ bool PipelineCache::SaveSpirvCache() {
             return false;
         }
         const u64 spv_size = spv.size();
-        if (!file.WriteObject(spv_size) ||
-            file.Write(spv) != spv.size() * sizeof(spv[0])) {
+        if (!file.WriteObject(spv_size) || file.Write(spv) != spv.size() * sizeof(spv[0])) {
             LOG_WARNING(Render_Vulkan, "Failed to write SPIRV cache data");
             return false;
         }
