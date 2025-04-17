@@ -122,7 +122,7 @@ static bool ExecuteCopyShaderHLE(const Shader::Info& info,
     return true;
 }
 
-std::string Vulkan::GenerateCopyShaderSource(const Shader::Info& info) {
+std::string GenerateCopyShaderSource(const Shader::Info& info) {
     // You can modify this function to generate different shader sources based on `info`
     return R"glsl(
         #version 450
@@ -138,9 +138,9 @@ std::string Vulkan::GenerateCopyShaderSource(const Shader::Info& info) {
     )glsl";
 }
 
-bool Vulkan::ExecuteShaderHLE(const Shader::Info& info, const AmdGpu::Liverpool::Regs& regs,
-                              const AmdGpu::Liverpool::ComputeProgram& cs_program,
-                              Rasterizer& rasterizer, vk::ShaderModule& shader_module) {
+bool ExecuteShaderHLE(const Shader::Info& info, const AmdGpu::Liverpool::Regs& regs,
+                      const AmdGpu::Liverpool::ComputeProgram& cs_program, Rasterizer& rasterizer,
+                      vk::ShaderModule& shader_module) {
     switch (info.pgm_hash) {
     case COPY_SHADER_HASH: {
         auto device = rasterizer.GetInstance().GetDevice();
