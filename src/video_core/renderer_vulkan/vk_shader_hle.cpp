@@ -15,7 +15,7 @@ static constexpr u64 COPY_SHADER_HASH = 0xfefebf9f;
 
 static bool ExecuteCopyShaderHLE(const Shader::Info& info,
                                  const AmdGpu::Liverpool::ComputeProgram& cs_program,
-                                 Rasterizer& rasterizer) {
+                                 Rasterizer& rasterizer, vk::ShaderModule& shader_module) {
     auto& scheduler = rasterizer.GetScheduler();
     auto& buffer_cache = rasterizer.GetBufferCache();
 
@@ -123,6 +123,7 @@ static bool ExecuteCopyShaderHLE(const Shader::Info& info,
 }
 
 std::string Vulkan::GenerateCopyShaderSource(const Shader::Info& info) {
+    // You can modify this function to generate different shader sources based on `info`
     return R"glsl(
         #version 450
         layout(local_size_x = 8, local_size_y = 8) in;
@@ -139,18 +140,22 @@ std::string Vulkan::GenerateCopyShaderSource(const Shader::Info& info) {
 
 bool Vulkan::ExecuteShaderHLE(const Shader::Info& info, const AmdGpu::Liverpool::Regs& regs,
                               const AmdGpu::Liverpool::ComputeProgram& cs_program,
-                              Rasterizer& rasterizer, vk::ShaderModule shader_module) {
+                              Rasterizer& rasterizer, vk::ShaderModule& shader_module) {
     switch (info.pgm_hash) {
     case COPY_SHADER_HASH: {
         auto device = rasterizer.GetInstance().GetDevice();
 
         // Generate or retrieve the shader source code
         std::string shader_source = GenerateCopyShaderSource(info);
-        auto shader_module =
-            Vulkan::Compile(shader_source, vk::ShaderStageFlagBits::eCompute, device);
 
-        // Compile and use shader inside ExecuteCopyShaderHLE without passing the module
-        return ExecuteCopyShaderHLE(info, cs_program, rasterizer);
+        // Compile the shader if it's not already compiled
+        if (!shader_module) {
+            shader_module =
+                Vulkan::Compile(shader_source, vk::ShaderStageFlagBits::eCompute, device);
+        }
+
+        // Now use the compiled shader module in ExecuteCopyShaderHLE
+        return ExecuteCopyShaderHLE(info, cs_program, rasterizer, shader_module);
     }
     default:
         return false;

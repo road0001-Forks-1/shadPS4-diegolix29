@@ -498,7 +498,8 @@ vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info, Shader::Runtim
     const auto ir_program = Shader::TranslateProgram(code, pools, info, runtime_info, profile);
 
     std::string shader_name = GetShaderName(info.stage, info.pgm_hash, perm_idx);
-    std::string spirv_cache_filename = shader_name + "_" ".spv";
+    std::string spirv_cache_filename = shader_name + "_"
+                                                     ".spv";
 
     const auto shader_cache_dir =
         Common::FS::GetUserPath(Common::FS::PathType::ShaderDir) / "cache";
@@ -550,7 +551,6 @@ vk::ShaderModule PipelineCache::CompileModule(Shader::Info& info, Shader::Runtim
                      spirv_cache_file_path.string());
         }
     }
-
 
     vk::ShaderModule module;
 

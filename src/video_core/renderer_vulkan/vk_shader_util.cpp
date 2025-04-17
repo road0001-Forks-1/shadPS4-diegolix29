@@ -166,7 +166,7 @@ vk::ShaderModule Compile(std::string_view code, vk::ShaderStageFlagBits stage, v
     static ShaderCache cache("user/shader_cache");
 
     if (auto spirv = cache.LoadShader(std::string(code), stage); !spirv.empty()) {
-        return CompileSPV(spirv, device); 
+        return CompileSPV(spirv, device);
     }
 
     if (!InitializeCompiler()) {
@@ -183,8 +183,7 @@ vk::ShaderModule Compile(std::string_view code, vk::ShaderStageFlagBits stage, v
     int pass_source_code_length = static_cast<int>(code.size());
 
     auto shader = std::make_unique<glslang::TShader>(lang);
-    shader->setEnvTarget(glslang::EShTargetSpv,
-                         glslang::EShTargetLanguageVersion::EShTargetSpv_1_3);
+    shader->setEnvTarget(glslang::EShTargetSpv, glslang::EShTargetSpv_1_3);
     shader->setStringsWithLengths(&pass_source_code, &pass_source_code_length, 1);
 
     std::string preambleString;
