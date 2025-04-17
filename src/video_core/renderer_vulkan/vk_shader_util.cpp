@@ -188,17 +188,58 @@ vk::ShaderModule Compile(std::string_view code, vk::ShaderStageFlagBits stage, v
     int length = static_cast<int>(code.size());
     shader->setStringsWithLengths(&source, &length, 1);
 
+    std::string preambleString;
+    std::vector<std::string> processes;
+
+    for (auto& def : defines) {
+        processes.push_back("define-macro ");
+        processes.back().append(def);
+
+        preambleString.append("#define ");
+        if (const size_t equal = def.find_first_of("="); equal != def.npos) {
+            def[equal] = ' ';
+        }
+        preambleString.append(def);
+        preambleString.append("\n");
+    }
+
+    shader->setPreamble(preambleString.c_str());
+    shader->addProcesses(processes);
+
     glslang::TShader::ForbidIncluder includer;
-    if (!shader->parse(&DefaultTBuiltInResource, 450, profile, false, true, messages, includer)) {
-        LOG_ERROR(Render_Vulkan, "Shader parsing failed: {}", shader->getInfoLog());
-        return nullptr;
+
+    std::string preprocessedStr;
+    if (!shader->preprocess(&DefaultTBuiltInResource, default_version, profile, false, true,
+                            messages, &preprocessedStr, includer)) [[unlikely]] {
+        LOG_ERROR(Render_Vulkan,
+                  "Shader preprocess error\n"
+                  "Shader Info Log:\n"
+                  "{}\n{}",
+                  shader->getInfoLog(), shader->getInfoDebugLog());
+        LOG_ERROR(Render_Vulkan, "Shader Source:\n{}", code);
+        return {};
+    }
+
+    if (!shader->parse(&DefaultTBuiltInResource, default_version, profile, false, true, messages,
+                       includer)) [[unlikely]] {
+        LOG_ERROR(Render_Vulkan,
+                  "Shader parse error\n"
+                  "Shader Info Log:\n"
+                  "{}\n{}",
+                  shader->getInfoLog(), shader->getInfoDebugLog());
+        LOG_ERROR(Render_Vulkan, "Shader Source:\n{}", code);
+        return {};
     }
 
     auto program = std::make_unique<glslang::TProgram>();
     program->addShader(shader.get());
     if (!program->link(messages)) {
-        LOG_ERROR(Render_Vulkan, "Shader linking failed: {}", program->getInfoLog());
-        return nullptr;
+        LOG_ERROR(Render_Vulkan,
+                  "Shader link error\n"
+                  "Program Info Log:\n"
+                  "{}\n{}",
+                  program->getInfoLog(), program->getInfoDebugLog());
+        return {};
     }
 
     glslang::TIntermediate* intermediate = program->getIntermediate(lang);

@@ -119,6 +119,7 @@ public:
     void S_BCNT1_I32_B64(const GcnInst& inst);
     void S_FF1_I32_B32(const GcnInst& inst);
     void S_FF1_I32_B64(const GcnInst& inst);
+    void S_FLBIT_I32_B32(const GcnInst& inst);
     void S_BITSET_B32(const GcnInst& inst, u32 bit_value);
     void S_GETPC_B64(u32 pc, const GcnInst& inst);
     void S_SAVEEXEC_B64(NegateMode negate, bool is_or, const GcnInst& inst);
@@ -238,13 +239,11 @@ public:
     void V_FMA_F32(const GcnInst& inst);
     void V_FMA_F64(const GcnInst& inst);
     void V_MIN3_F32(const GcnInst& inst);
-    void V_MIN3_I32(const GcnInst& inst);
-    void V_MIN3_U32(const GcnInst& inst);
+    void V_MIN3_U32(bool is_signed, const GcnInst& inst);
     void V_MAX3_F32(const GcnInst& inst);
     void V_MAX3_U32(bool is_signed, const GcnInst& inst);
     void V_MED3_F32(const GcnInst& inst);
-    void V_MED3_I32(const GcnInst& inst);
-    void V_MED3_U32(const GcnInst& inst);
+    void V_MED3_U32(bool is_signed, const GcnInst& inst);
     void V_SAD(const GcnInst& inst);
     void V_SAD_U32(const GcnInst& inst);
     void V_CVT_PK_U16_U32(const GcnInst& inst);
