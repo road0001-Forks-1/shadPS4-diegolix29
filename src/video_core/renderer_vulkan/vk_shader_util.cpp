@@ -5,11 +5,11 @@
 #include <glslang/Include/ResourceLimits.h>
 #include <glslang/Public/ShaderLang.h>
 #include <glslang/SPIRV/GlslangToSpv.h>
-#include "vk_shader_cache.h"
 
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
+#include "vk_shader_cache.h"
 
 namespace Vulkan {
 
@@ -161,32 +161,31 @@ bool InitializeCompiler() {
 }
 } // Anonymous namespace
 
-vk::ShaderModule Compile(std::string_view code, vk::ShaderStageFlagBits stage, vk::Device device) {
+vk::ShaderModule Compile(std::string_view code, vk::ShaderStageFlagBits stage, vk::Device device,
+                         std::vector<std::string> defines) {
     static ShaderCache cache("user/shader_cache");
 
-    // Try loading from cache
     if (auto spirv = cache.LoadShader(std::string(code), stage); !spirv.empty()) {
-        return CompileSPV(spirv, device); // Use cached SPIR-V to create shader module
+        return CompileSPV(spirv, device); 
     }
 
-    // Compile from GLSL to SPIR-V if cache miss
     if (!InitializeCompiler()) {
         LOG_ERROR(Render_Vulkan, "Failed to initialize GLSL compiler.");
         return nullptr;
     }
 
-    // Compile GLSL to SPIR-V (existing code)
     EProfile profile = ECoreProfile;
+    EShMessages messages = (EShMessages)(EShMsgDefault | EShMsgSpvRules | EShMsgVulkanRules);
     EShLanguage lang = ToEshShaderStage(stage);
-    EShMessages messages =
-        static_cast<EShMessages>(EShMsgDefault | EShMsgSpvRules | EShMsgVulkanRules);
+
+    const int default_version = 450;
+    const char* pass_source_code = code.data();
+    int pass_source_code_length = static_cast<int>(code.size());
 
     auto shader = std::make_unique<glslang::TShader>(lang);
     shader->setEnvTarget(glslang::EShTargetSpv,
                          glslang::EShTargetLanguageVersion::EShTargetSpv_1_3);
-    const char* source = code.data();
-    int length = static_cast<int>(code.size());
-    shader->setStringsWithLengths(&source, &length, 1);
+    shader->setStringsWithLengths(&pass_source_code, &pass_source_code_length, 1);
 
     std::string preambleString;
     std::vector<std::string> processes;
@@ -231,6 +230,7 @@ vk::ShaderModule Compile(std::string_view code, vk::ShaderStageFlagBits stage, v
         return {};
     }
 
+    // Even though there's only a single shader, we still need to link it to generate SPV
     auto program = std::make_unique<glslang::TProgram>();
     program->addShader(shader.get());
     if (!program->link(messages)) {
@@ -243,33 +243,34 @@ vk::ShaderModule Compile(std::string_view code, vk::ShaderStageFlagBits stage, v
     }
 
     glslang::TIntermediate* intermediate = program->getIntermediate(lang);
-    std::vector<uint32_t> spirv_code;
+    std::vector<u32> out_code;
     spv::SpvBuildLogger logger;
-    glslang::SpvOptions options{
-        .disableOptimizer = false,
-        .validate = false,
-        .optimizeSize = true,
-    };
+    glslang::SpvOptions options;
 
-    glslang::GlslangToSpv(*intermediate, spirv_code, &logger, &options);
+    options.disableOptimizer = false;
+    options.validate = false;
+    options.optimizeSize = true;
 
-    if (const auto messages = logger.getAllMessages(); !messages.empty()) {
-        LOG_INFO(Render_Vulkan, "SPIR-V conversion messages: {}", messages);
+    glslang::GlslangToSpv(*intermediate, out_code, &logger, &options);
+
+    const std::string spv_messages = logger.getAllMessages();
+    if (!spv_messages.empty()) {
+        LOG_INFO(Render_Vulkan, "SPIR-V conversion messages: {}", spv_messages);
     }
 
-    // Save SPIR-V to cache
-    cache.SaveShader(std::string(code), stage, spirv_code);
-
-    return CompileSPV(spirv_code, device); // Create shader module from SPIR-V
+    return CompileSPV(out_code, device);
 }
 
 vk::ShaderModule CompileSPV(std::span<const u32> code, vk::Device device) {
-    vk::ShaderModuleCreateInfo shader_info{};
-    shader_info.codeSize = code.size() * sizeof(u32);
-    shader_info.pCode = code.data();
+    const vk::ShaderModuleCreateInfo shader_info = {
+        .codeSize = code.size() * sizeof(u32),
+        .pCode = code.data(),
+    };
 
-vk::ShaderModule module = device.createShaderModule(shader_info);
-    return module; // Implicitly throws if creation fails (if exceptions are enabled)
+    auto [module_result, module] = device.createShaderModule(shader_info);
+    ASSERT_MSG(module_result == vk::Result::eSuccess, "Failed to compile SPIR-V shader: {}",
+               vk::to_string(module_result));
+    return module;
 }
 
 } // namespace Vulkan
